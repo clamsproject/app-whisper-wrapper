@@ -1,6 +1,6 @@
 import argparse
 import tempfile
-import whisper
+import stable_whisper
 from typing import Dict, Union
 
 import ffmpeg
@@ -10,7 +10,7 @@ from mmif import Mmif, View, Annotation, Document, AnnotationTypes, DocumentType
 
 __version__ = '0.2.4' # TODO: Update
 Model = 'large'
-whisper_model = whisper.load_model(Model)
+whisper_model = stable_whisper.load_model(Model)
 
 class Whisper(ClamsApp):
 
@@ -72,16 +72,16 @@ class Whisper(ClamsApp):
         self._create_align(view, source_audio_doc, textdoc)
         char_offset = 0
         for index, segment in enumerate(transcript['segments']):
-            raw_tokens = self.token_boundary.join([token for token in segment['tokens']])
-            tok_start = char_offset
-            tok_end = tok_start + len(raw_tokens)
-            char_offset += len(raw_tokens) + len(self.token_boundary)
-            # Whisper doesn't return single tokens?
-            tokens = self._create_token(view, raw_tokens, tok_start, tok_end, f'{view.id}:{textdoc.id}')
-            tf_start = segment['start']
-            tf_end = segment['end']
-            tf = self._create_tf(view, tf_start, tf_end)
-            self._create_align(view, tf, tokens)  # counting one for TextDoc-AudioDoc alignment
+            for token in segment['whole_word_timestamps']:
+                raw_token = token['word']
+                tok_start = char_offset
+                tok_end = tok_start + len(raw_token)
+                char_offset += len(raw_token) + len(self.token_boundary)
+                token = self._create_token(view, raw_token, tok_start, tok_end, f'{view.id}:{textdoc.id}')
+                tf_start = token['start']
+                tf_end = token['end']
+                tf = self._create_tf(view, tf_start, tf_end)
+                self._create_align(view, tf, token)  # counting one for TextDoc-AudioDoc alignment
 
     @staticmethod
     def _create_td(parent_view: View, doc: str) -> Document:
