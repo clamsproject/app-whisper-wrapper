@@ -8,8 +8,8 @@ from clams import ClamsApp, Restifier, AppMetadata
 from lapps.discriminators import Uri
 from mmif import Mmif, View, Annotation, Document, AnnotationTypes, DocumentTypes
 
-__version__ = '0.2.4' # TODO: Update
-Model = 'large'
+__version__ = '0.1.0'
+Model = 'small' #TODO: Decide on model size
 whisper_model = stable_whisper.load_model(Model)
 
 class Whisper(ClamsApp):
@@ -27,8 +27,8 @@ class Whisper(ClamsApp):
             analyzer_version="v4",
             analyzer_license="UNKNOWN",
             app_license="Apache 2.0",
-            identifier=None,  # TODO: add
-            url=None,  # TODO: add
+            identifier="http://apps.clams.ai/aapb-pua-kaldi-wrapper/{__version__}",  # TODO: add
+            url="https://github.com/clamsproject/app-aapb-pua-kaldi-wrapper",  # TODO: add
         )
         metadata.add_input(DocumentTypes.AudioDocument)
         metadata.add_output(DocumentTypes.TextDocument)
@@ -66,20 +66,23 @@ class Whisper(ClamsApp):
 
     def _whisper_to_textdocument(self, transcript, view, source_audio_doc):
         # join tokens
-        raw_text = self.token_boundary.join([token for token in transcript['text']])
+        raw_text = transcript['text']
         # make annotations
         textdoc = self._create_td(view, raw_text)
         self._create_align(view, source_audio_doc, textdoc)
         char_offset = 0
         for index, segment in enumerate(transcript['segments']):
-            for token in segment['whole_word_timestamps']:
-                raw_token = token['word']
+            for t1, t2 in zip(segment['whole_word_timestamps'], segment['whole_word_timestamps'][1:]+[None]):
+                raw_token = t1['word']
                 tok_start = char_offset
                 tok_end = tok_start + len(raw_token)
                 char_offset += len(raw_token) + len(self.token_boundary)
                 token = self._create_token(view, raw_token, tok_start, tok_end, f'{view.id}:{textdoc.id}')
-                tf_start = token['start']
-                tf_end = token['end']
+                tf_start = t1['timestamp']
+                if t2:
+                    tf_end = t2['timestamp']
+                else:
+                    tf_end = segment['end']
                 tf = self._create_tf(view, tf_start, tf_end)
                 self._create_align(view, tf, token)  # counting one for TextDoc-AudioDoc alignment
 
@@ -128,7 +131,7 @@ class Whisper(ClamsApp):
         for audio_docid, audio_fname in files.items():
             resampled_audio_fname = f'{audio_tmpdir.name}/{audio_docid}_16kHz.wav'
             ffmpeg.input(audio_fname).output(resampled_audio_fname, ac=1, ar=16000).run()
-            transcripts.append(whisper.transcribe(whisper_model, resampled_audio_fname))
+            transcripts.append(whisper_model.transcribe(resampled_audio_fname))
         return transcripts
 
 
@@ -147,4 +150,8 @@ if __name__ == '__main__':
     )
     parsed_args = parser.parse_args()
 
-    whisper_app = Whisper()
+    whisper_flask = Restifier(Whisper(), port=int(parsed_args.port))
+    if parsed_args.production:
+        whisper_flask.serve_production()
+    else:
+        whisper_flask.run()
