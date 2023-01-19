@@ -8,26 +8,27 @@ from clams import ClamsApp, Restifier, AppMetadata
 from lapps.discriminators import Uri
 from mmif import Mmif, View, Annotation, Document, AnnotationTypes, DocumentTypes
 
-__version__ = '0.1.0'
-Model = 'small' #TODO: Decide on model size
+__version__ = "0.1.0"
+Model = "small"  # TODO: Decide on model size
 whisper_model = stable_whisper.load_model(Model)
+
 
 class Whisper(ClamsApp):
 
-    timeunit = 'seconds'
-    token_boundary = ' '
-    timeunit_conv = {'milliseconds': 1000, 'seconds': 1}
+    timeunit = "seconds"
+    token_boundary = " "
+    timeunit_conv = {"milliseconds": 1000, "seconds": 1}
 
     def _appmetadata(self):
         metadata = AppMetadata(
             name="Whisper Wrapper",
             description="A CLAMS wrapper for Whisper-based ASR software originally developed by OpenAI,"
-                        " Wrapped software can be found at https://github.com/clamsproject/app-whisper-wrapper. ",
+            " Wrapped software can be found at https://github.com/clamsproject/app-whisper-wrapper. ",
             app_version=__version__,
             analyzer_version="v4",
             analyzer_license="UNKNOWN",
             app_license="Apache 2.0",
-            identifier="http://apps.clams.ai/aapb-pua-kaldi-wrapper/{__version__}",  # TODO: add
+            identifier="https://apps.clams.ai/aapb-pua-kaldi-wrapper/{__version__}",  # TODO: add
             url="https://github.com/clamsproject/app-aapb-pua-kaldi-wrapper",  # TODO: add
         )
         metadata.add_input(DocumentTypes.AudioDocument)
@@ -42,11 +43,14 @@ class Whisper(ClamsApp):
             mmif: Mmif = Mmif(mmif)
 
         # get AudioDocuments with locations
-        docs = [document for document in mmif.documents
-                if document.at_type == DocumentTypes.AudioDocument and len(document.location) > 0]
+        docs = [
+            document
+            for document in mmif.documents
+            if document.at_type == DocumentTypes.AudioDocument
+            and len(document.location) > 0
+        ]
         conf = self.get_configuration(**parameters)
         files = {doc.id: doc.location_path() for doc in docs}
-        tf_src_view = {}
 
         transcripts = self._run_whisper(files)
 
@@ -56,35 +60,44 @@ class Whisper(ClamsApp):
             self.sign_view(view, conf)
             view.new_contain(DocumentTypes.TextDocument)
             view.new_contain(Uri.TOKEN)
-            view.new_contain(AnnotationTypes.TimeFrame,
-                             timeUnit=self.timeunit,
-                             document=file)
+            view.new_contain(
+                AnnotationTypes.TimeFrame, timeUnit=self.timeunit, document=file
+            )
             view.new_contain(AnnotationTypes.Alignment)
-            self._whisper_to_textdocument(transcript, view, mmif.get_document_by_id(file))
+            self._whisper_to_textdocument(
+                transcript, view, mmif.get_document_by_id(file)
+            )
 
         return mmif
 
     def _whisper_to_textdocument(self, transcript, view, source_audio_doc):
         # join tokens
-        raw_text = transcript['text']
+        raw_text = transcript["text"]
         # make annotations
         textdoc = self._create_td(view, raw_text)
         self._create_align(view, source_audio_doc, textdoc)
         char_offset = 0
-        for index, segment in enumerate(transcript['segments']):
-            for t1, t2 in zip(segment['whole_word_timestamps'], segment['whole_word_timestamps'][1:]+[None]):
-                raw_token = t1['word']
+        for index, segment in enumerate(transcript["segments"]):
+            for t1, t2 in zip(
+                segment["whole_word_timestamps"],
+                segment["whole_word_timestamps"][1:] + [None],
+            ):
+                raw_token = t1["word"]
                 tok_start = char_offset
                 tok_end = tok_start + len(raw_token)
                 char_offset += len(raw_token) + len(self.token_boundary)
-                token = self._create_token(view, raw_token, tok_start, tok_end, f'{view.id}:{textdoc.id}')
-                tf_start = t1['timestamp']
+                token = self._create_token(
+                    view, raw_token, tok_start, tok_end, f"{view.id}:{textdoc.id}"
+                )
+                tf_start = t1["timestamp"]
                 if t2:
-                    tf_end = t2['timestamp']
+                    tf_end = t2["timestamp"]
                 else:
-                    tf_end = segment['end']
+                    tf_end = segment["end"]
                 tf = self._create_tf(view, tf_start, tf_end)
-                self._create_align(view, tf, token)  # counting one for TextDoc-AudioDoc alignment
+                self._create_align(
+                    view, tf, token
+                )  # counting one for TextDoc-AudioDoc alignment
 
     @staticmethod
     def _create_td(parent_view: View, doc: str) -> Document:
@@ -92,28 +105,29 @@ class Whisper(ClamsApp):
         return td
 
     @staticmethod
-    def _create_token(parent_view: View, word: str, start: int, end: int, source_doc_id: str) -> Annotation:
-        token = parent_view.new_annotation(Uri.TOKEN,
-                                           word=word,
-                                           start=start,
-                                           end=end,
-                                           document=source_doc_id)
+    def _create_token(
+        parent_view: View, word: str, start: int, end: int, source_doc_id: str
+    ) -> Annotation:
+        token = parent_view.new_annotation(
+            Uri.TOKEN, word=word, start=start, end=end, document=source_doc_id
+        )
         return token
 
     @staticmethod
     def _create_tf(parent_view: View, start: int, end: int) -> Annotation:
         # unlike _create_token, parent document is encoded in the contains metadata of TimeFrame
-        tf = parent_view.new_annotation(AnnotationTypes.TimeFrame,
-                                        frameType='speech',
-                                        start=start,
-                                        end=end)
+        tf = parent_view.new_annotation(
+            AnnotationTypes.TimeFrame, frameType="speech", start=start, end=end
+        )
         return tf
 
     @staticmethod
-    def _create_align(parent_view: View, source: Annotation, target: Annotation) -> Annotation:
-        align = parent_view.new_annotation(AnnotationTypes.Alignment,
-                                           source=source.id,
-                                           target=target.id)
+    def _create_align(
+        parent_view: View, source: Annotation, target: Annotation
+    ) -> Annotation:
+        align = parent_view.new_annotation(
+            AnnotationTypes.Alignment, source=source.id, target=target.id
+        )
         return align
 
     @staticmethod
@@ -129,25 +143,20 @@ class Whisper(ClamsApp):
         audio_tmpdir = tempfile.TemporaryDirectory()
 
         for audio_docid, audio_fname in files.items():
-            resampled_audio_fname = f'{audio_tmpdir.name}/{audio_docid}_16kHz.wav'
-            ffmpeg.input(audio_fname).output(resampled_audio_fname, ac=1, ar=16000).run()
+            resampled_audio_fname = f"{audio_tmpdir.name}/{audio_docid}_16kHz.wav"
+            ffmpeg.input(audio_fname).output(
+                resampled_audio_fname, ac=1, ar=16000
+            ).run()
             transcripts.append(whisper_model.transcribe(resampled_audio_fname))
         return transcripts
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        '--port',
-        action='store',
-        default='5000',
-        help='set port to listen'
+        "--port", action="store", default="5000", help="set port to listen"
     )
-    parser.add_argument(
-        '--production',
-        action='store_true',
-        help='run gunicorn server'
-    )
+    parser.add_argument("--production", action="store_true", help="run gunicorn server")
     parsed_args = parser.parse_args()
 
     whisper_flask = Restifier(Whisper(), port=int(parsed_args.port))
