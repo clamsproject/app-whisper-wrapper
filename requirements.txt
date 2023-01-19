@@ -1,5 +1,3 @@
-mmif_python==0.2.2
 lapps==0.0.2
-clams_python==0.2.0
-clams==0.0.5
+clams-python==0.5.1
 ffmpeg==1.4
