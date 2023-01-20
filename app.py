@@ -8,9 +8,7 @@ from clams import ClamsApp, Restifier, AppMetadata
 from lapps.discriminators import Uri
 from mmif import Mmif, View, Annotation, Document, AnnotationTypes, DocumentTypes
 
-__version__ = "0.1.0"
-Model = "small"  # TODO: Decide on model size
-whisper_model = stable_whisper.load_model(Model)
+__version__ = "0.1.1"
 
 
 class Whisper(ClamsApp):
@@ -18,6 +16,10 @@ class Whisper(ClamsApp):
     timeunit = "seconds"
     token_boundary = " "
     timeunit_conv = {"milliseconds": 1000, "seconds": 1}
+
+    def __init__(self, model_size="medium"):
+        self.whisper_model = stable_whisper.load_model(model_size)
+        super().__init__()
 
     def _appmetadata(self):
         metadata = AppMetadata(
@@ -29,7 +31,7 @@ class Whisper(ClamsApp):
             analyzer_license="UNKNOWN",
             app_license="Apache 2.0",
             identifier="https://apps.clams.ai/aapb-pua-kaldi-wrapper/{__version__}",  # TODO: add
-            url="https://github.com/clamsproject/app-aapb-pua-kaldi-wrapper",  # TODO: add
+            url="https://github.com/clamsproject/app-whisper-wrapper",
         )
         metadata.add_input(DocumentTypes.AudioDocument)
         metadata.add_output(DocumentTypes.TextDocument)
@@ -71,7 +73,6 @@ class Whisper(ClamsApp):
         return mmif
 
     def _whisper_to_textdocument(self, transcript, view, source_audio_doc):
-        # join tokens
         raw_text = transcript["text"]
         # make annotations
         textdoc = self._create_td(view, raw_text)
@@ -130,8 +131,7 @@ class Whisper(ClamsApp):
         )
         return align
 
-    @staticmethod
-    def _run_whisper(files: Dict[str, str]) -> list[dict]:
+    def _run_whisper(self, files: Dict[str, str]) -> list[dict]:
         """
         Run Whisper on each audio file.
 
@@ -147,7 +147,7 @@ class Whisper(ClamsApp):
             ffmpeg.input(audio_fname).output(
                 resampled_audio_fname, ac=1, ar=16000
             ).run()
-            transcripts.append(whisper_model.transcribe(resampled_audio_fname))
+            transcripts.append(self.whisper_model.transcribe(resampled_audio_fname))
         return transcripts
 
 
@@ -157,9 +157,17 @@ if __name__ == "__main__":
         "--port", action="store", default="5000", help="set port to listen"
     )
     parser.add_argument("--production", action="store_true", help="run gunicorn server")
+    parser.add_argument(
+        "--model_size",
+        action="store",
+        default="medium",
+        help="specify Whisper model size (small/medium/large)",
+    )
     parsed_args = parser.parse_args()
 
-    whisper_flask = Restifier(Whisper(), port=int(parsed_args.port))
+    whisper_flask = Restifier(
+        Whisper(parsed_args.model_size), port=int(parsed_args.port)
+    )
     if parsed_args.production:
         whisper_flask.serve_production()
     else:
