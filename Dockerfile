@@ -1,7 +1,4 @@
-FROM brandeisllc/whisper
-
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends ffmpeg
+FROM clamsproject/clams-python-ffmpeg:latest
 
 COPY ./ /app
 WORKDIR /app
