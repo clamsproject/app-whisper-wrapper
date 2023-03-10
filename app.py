@@ -28,7 +28,7 @@ class Whisper(ClamsApp):
             " Wrapped software can be found at https://github.com/clamsproject/app-whisper-wrapper. ",
             app_version=__version__,
             analyzer_version="v4",
-            analyzer_license="UNKNOWN",
+            analyzer_license="MIT",
             app_license="Apache 2.0",
             identifier="https://apps.clams.ai/aapb-pua-kaldi-wrapper/{__version__}",  # TODO: add
             url="https://github.com/clamsproject/app-whisper-wrapper",
