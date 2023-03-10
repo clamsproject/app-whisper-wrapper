@@ -22,10 +22,10 @@ Then to create a Docker container using that image, run:
 docker run -v /path/to/data/directory:/data -p <port>:5000 whisper
 ```
 
-where /path/to/data/directory is the location of your media files or MMIF objects and <port> is the port number you want your container to be listening to.
+where /path/to/data/directory is the location of your media files or MMIF objects and "<port>" is the port number you want your container to be listening to.
 If your data directory consists of media files (either video or audio), you will first want to convert them to MMIF objects, which can be done in the command line via
 ```bash
-$ clams source audio:<filename> > input.mmif
+clams source audio:<filename> > input.mmif
 ```
 (Make sure you installed the same `clams-python` package version specified in the [`requirements.txt`](requirements.txt).)
 
