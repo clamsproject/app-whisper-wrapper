@@ -1,7 +1,7 @@
 import argparse
 import tempfile
 import stable_whisper
-from typing import Dict, Union
+from typing import Dict, Union, List
 
 import ffmpeg
 from clams import ClamsApp, Restifier, AppMetadata
@@ -131,7 +131,7 @@ class Whisper(ClamsApp):
         )
         return align
 
-    def _run_whisper(self, files: Dict[str, str]) -> list[dict]:
+    def _run_whisper(self, files: Dict[str, str]) -> List[dict]:
         """
         Run Whisper on each audio file.
 
