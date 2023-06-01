@@ -1,44 +1,24 @@
 import argparse
 import tempfile
-import stable_whisper
 from typing import Dict, Union, List
 
 import ffmpeg
-from clams import ClamsApp, Restifier, AppMetadata
+import whisper
+from clams import ClamsApp, Restifier
 from lapps.discriminators import Uri
-from mmif import Mmif, View, Annotation, Document, AnnotationTypes, DocumentTypes
+from mmif import Mmif, View, AnnotationTypes, DocumentTypes
 
-__version__ = "0.1.1"
+import metadata as app_metadata
 
 
 class Whisper(ClamsApp):
 
-    timeunit = "seconds"
-    token_boundary = " "
-    timeunit_conv = {"milliseconds": 1000, "seconds": 1}
-
     def __init__(self, model_size="medium"):
-        self.whisper_model = stable_whisper.load_model(model_size)
+        self.whisper_model = whisper.load_model(model_size)
         super().__init__()
 
     def _appmetadata(self):
-        metadata = AppMetadata(
-            name="Whisper Wrapper",
-            description="A CLAMS wrapper for Whisper-based ASR software originally developed by OpenAI,"
-            " Wrapped software can be found at https://github.com/clamsproject/app-whisper-wrapper. ",
-            app_version=__version__,
-            analyzer_version="v4",
-            analyzer_license="MIT",
-            app_license="Apache 2.0",
-            identifier="https://apps.clams.ai/aapb-pua-kaldi-wrapper/{__version__}",  # TODO: add
-            url="https://github.com/clamsproject/app-whisper-wrapper",
-        )
-        metadata.add_input(DocumentTypes.AudioDocument)
-        metadata.add_output(DocumentTypes.TextDocument)
-        metadata.add_output(AnnotationTypes.TimeFrame, timeUnit=self.timeunit)
-        metadata.add_output(AnnotationTypes.Alignment)
-        metadata.add_output(Uri.TOKEN)
-        return metadata
+        pass
 
     def _annotate(self, mmif: Union[str, dict, Mmif], **parameters) -> Mmif:
         if not isinstance(mmif, Mmif):
@@ -62,74 +42,31 @@ class Whisper(ClamsApp):
             self.sign_view(view, conf)
             view.new_contain(DocumentTypes.TextDocument)
             view.new_contain(Uri.TOKEN)
-            view.new_contain(
-                AnnotationTypes.TimeFrame, timeUnit=self.timeunit, document=file
-            )
+            view.new_contain(AnnotationTypes.TimeFrame, timeUnit=app_metadata.timeunit, document=file)
             view.new_contain(AnnotationTypes.Alignment)
             self._whisper_to_textdocument(
                 transcript, view, mmif.get_document_by_id(file)
             )
-
         return mmif
 
-    def _whisper_to_textdocument(self, transcript, view, source_audio_doc):
+    @staticmethod
+    def _whisper_to_textdocument(transcript, view, source_audio_doc):
         raw_text = transcript["text"]
         # make annotations
-        textdoc = self._create_td(view, raw_text)
-        self._create_align(view, source_audio_doc, textdoc)
+        textdoc = view.new_textdocument(raw_text)
+        view.new_annotation(AnnotationTypes.Alignment, source=source_audio_doc.id, target=textdoc.id)
         char_offset = 0
-        for index, segment in enumerate(transcript["segments"]):
-            for t1, t2 in zip(
-                segment["whole_word_timestamps"],
-                segment["whole_word_timestamps"][1:] + [None],
-            ):
-                raw_token = t1["word"]
+        for segment in transcript["segments"]:
+            for word in segment["words"]:
+                raw_token = word["word"]
                 tok_start = char_offset
                 tok_end = tok_start + len(raw_token)
-                char_offset += len(raw_token) + len(self.token_boundary)
-                token = self._create_token(
-                    view, raw_token, tok_start, tok_end, f"{view.id}:{textdoc.id}"
-                )
-                tf_start = t1["timestamp"]
-                if t2:
-                    tf_end = t2["timestamp"]
-                else:
-                    tf_end = segment["end"]
-                tf = self._create_tf(view, tf_start, tf_end)
-                self._create_align(
-                    view, tf, token
-                )  # counting one for TextDoc-AudioDoc alignment
-
-    @staticmethod
-    def _create_td(parent_view: View, doc: str) -> Document:
-        td = parent_view.new_textdocument(doc)
-        return td
-
-    @staticmethod
-    def _create_token(
-        parent_view: View, word: str, start: int, end: int, source_doc_id: str
-    ) -> Annotation:
-        token = parent_view.new_annotation(
-            Uri.TOKEN, word=word, start=start, end=end, document=source_doc_id
-        )
-        return token
-
-    @staticmethod
-    def _create_tf(parent_view: View, start: int, end: int) -> Annotation:
-        # unlike _create_token, parent document is encoded in the contains metadata of TimeFrame
-        tf = parent_view.new_annotation(
-            AnnotationTypes.TimeFrame, frameType="speech", start=start, end=end
-        )
-        return tf
-
-    @staticmethod
-    def _create_align(
-        parent_view: View, source: Annotation, target: Annotation
-    ) -> Annotation:
-        align = parent_view.new_annotation(
-            AnnotationTypes.Alignment, source=source.id, target=target.id
-        )
-        return align
+                char_offset += len(raw_token) + len(' ')
+                token = view.new_annotation(Uri.TOKEN, word=raw_token, start=tok_start, end=tok_end, document=f"{view.id}:{textdoc.id}")
+                tf_start = word["start"]
+                tf_end = word["end"]
+                tf = view.new_annotation(AnnotationTypes.TimeFrame, frameType="speech", start=tf_start, end=tf_end)
+                view.new_annotation(AnnotationTypes.Alignment, source=tf.id, target=token.id)
 
     def _run_whisper(self, files: Dict[str, str]) -> List[dict]:
         """
@@ -147,7 +84,8 @@ class Whisper(ClamsApp):
             ffmpeg.input(audio_fname).output(
                 resampled_audio_fname, ac=1, ar=16000
             ).run()
-            transcripts.append(self.whisper_model.transcribe(resampled_audio_fname))
+            transcripts.append(self.whisper_model.transcribe(audio=resampled_audio_fname, word_timestamps=True))
+        audio_tmpdir.cleanup()
         return transcripts
 
 
