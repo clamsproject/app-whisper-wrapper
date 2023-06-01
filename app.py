@@ -1,13 +1,14 @@
 import argparse
 import tempfile
-import whisper
 from typing import Dict, Union, List
 
 import ffmpeg
+import whisper
 from clams import ClamsApp, Restifier
-import metadata as app_metadata
 from lapps.discriminators import Uri
-from mmif import Mmif, View, Annotation, Document, AnnotationTypes, DocumentTypes
+from mmif import Mmif, View, AnnotationTypes, DocumentTypes
+
+import metadata as app_metadata
 
 
 class Whisper(ClamsApp):
@@ -41,21 +42,19 @@ class Whisper(ClamsApp):
             self.sign_view(view, conf)
             view.new_contain(DocumentTypes.TextDocument)
             view.new_contain(Uri.TOKEN)
-            view.new_contain(
-                AnnotationTypes.TimeFrame, timeUnit=app_metadata.timeunit, document=file
-            )
+            view.new_contain(AnnotationTypes.TimeFrame, timeUnit=app_metadata.timeunit, document=file)
             view.new_contain(AnnotationTypes.Alignment)
             self._whisper_to_textdocument(
                 transcript, view, mmif.get_document_by_id(file)
             )
-
         return mmif
 
-    def _whisper_to_textdocument(self, transcript, view, source_audio_doc):
+    @staticmethod
+    def _whisper_to_textdocument(transcript, view, source_audio_doc):
         raw_text = transcript["text"]
         # make annotations
-        textdoc = self._create_td(view, raw_text)
-        self._create_align(view, source_audio_doc, textdoc)
+        textdoc = view.new_textdocument(raw_text)
+        view.new_annotation(AnnotationTypes.Alignment, source=source_audio_doc.id, target=textdoc.id)
         char_offset = 0
         for segment in transcript["segments"]:
             for word in segment["words"]:
@@ -63,46 +62,11 @@ class Whisper(ClamsApp):
                 tok_start = char_offset
                 tok_end = tok_start + len(raw_token)
                 char_offset += len(raw_token) + len(' ')
-                token = self._create_token(
-                    view, raw_token, tok_start, tok_end, f"{view.id}:{textdoc.id}"
-                )
+                token = view.new_annotation(Uri.TOKEN, word=raw_token, start=tok_start, end=tok_end, document=f"{view.id}:{textdoc.id}")
                 tf_start = word["start"]
                 tf_end = word["end"]
-                tf = self._create_tf(view, tf_start, tf_end)
-                self._create_align(
-                    view, tf, token
-                )  # counting one for TextDoc-AudioDoc alignment
-
-    @staticmethod
-    def _create_td(parent_view: View, doc: str) -> Document:
-        td = parent_view.new_textdocument(doc)
-        return td
-
-    @staticmethod
-    def _create_token(
-        parent_view: View, word: str, start: int, end: int, source_doc_id: str
-    ) -> Annotation:
-        token = parent_view.new_annotation(
-            Uri.TOKEN, word=word, start=start, end=end, document=source_doc_id
-        )
-        return token
-
-    @staticmethod
-    def _create_tf(parent_view: View, start: int, end: int) -> Annotation:
-        # unlike _create_token, parent document is encoded in the contains metadata of TimeFrame
-        tf = parent_view.new_annotation(
-            AnnotationTypes.TimeFrame, frameType="speech", start=start, end=end
-        )
-        return tf
-
-    @staticmethod
-    def _create_align(
-        parent_view: View, source: Annotation, target: Annotation
-    ) -> Annotation:
-        align = parent_view.new_annotation(
-            AnnotationTypes.Alignment, source=source.id, target=target.id
-        )
-        return align
+                tf = view.new_annotation(AnnotationTypes.TimeFrame, frameType="speech", start=tf_start, end=tf_end)
+                view.new_annotation(AnnotationTypes.Alignment, source=tf.id, target=token.id)
 
     def _run_whisper(self, files: Dict[str, str]) -> List[dict]:
         """
