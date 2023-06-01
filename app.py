@@ -4,41 +4,20 @@ import whisper
 from typing import Dict, Union, List
 
 import ffmpeg
-from clams import ClamsApp, Restifier, AppMetadata
+from clams import ClamsApp, Restifier
+import metadata as app_metadata
 from lapps.discriminators import Uri
 from mmif import Mmif, View, Annotation, Document, AnnotationTypes, DocumentTypes
 
-__version__ = "0.2.0"
-
 
 class Whisper(ClamsApp):
-
-    timeunit = "seconds"
-    token_boundary = " "
-    timeunit_conv = {"milliseconds": 1000, "seconds": 1}
 
     def __init__(self, model_size="medium"):
         self.whisper_model = whisper.load_model(model_size)
         super().__init__()
 
     def _appmetadata(self):
-        metadata = AppMetadata(
-            name="Whisper Wrapper",
-            description="A CLAMS wrapper for Whisper-based ASR software originally developed by OpenAI,"
-            " Wrapped software can be found at https://github.com/clamsproject/app-whisper-wrapper. ",
-            app_version=__version__,
-            analyzer_version="v4",
-            analyzer_license="MIT",
-            app_license="Apache 2.0",
-            identifier="",  # TODO: add
-            url="https://github.com/clamsproject/app-whisper-wrapper",
-        )
-        metadata.add_input(DocumentTypes.AudioDocument)
-        metadata.add_output(DocumentTypes.TextDocument)
-        metadata.add_output(AnnotationTypes.TimeFrame, timeUnit=self.timeunit)
-        metadata.add_output(AnnotationTypes.Alignment)
-        metadata.add_output(Uri.TOKEN)
-        return metadata
+        pass
 
     def _annotate(self, mmif: Union[str, dict, Mmif], **parameters) -> Mmif:
         if not isinstance(mmif, Mmif):
@@ -63,7 +42,7 @@ class Whisper(ClamsApp):
             view.new_contain(DocumentTypes.TextDocument)
             view.new_contain(Uri.TOKEN)
             view.new_contain(
-                AnnotationTypes.TimeFrame, timeUnit=self.timeunit, document=file
+                AnnotationTypes.TimeFrame, timeUnit=app_metadata.timeunit, document=file
             )
             view.new_contain(AnnotationTypes.Alignment)
             self._whisper_to_textdocument(
@@ -83,7 +62,7 @@ class Whisper(ClamsApp):
                 raw_token = word
                 tok_start = char_offset
                 tok_end = tok_start + len(raw_token)
-                char_offset += len(raw_token) + len(self.token_boundary)
+                char_offset += len(raw_token) + len(' ')
                 token = self._create_token(
                     view, raw_token, tok_start, tok_end, f"{view.id}:{textdoc.id}"
                 )
