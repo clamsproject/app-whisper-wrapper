@@ -15,23 +15,14 @@ timeunit = "seconds"
 
 # DO NOT CHANGE the function name 
 def appmetadata() -> AppMetadata:
-    """
-    Function to set app-metadata values and return it as an ``AppMetadata`` obj.
-    Read these documentations before changing the code below
-    - https://sdk.clams.ai/appmetadata.html metadata specification. 
-    - https://sdk.clams.ai/autodoc/clams.appmetadata.html python API
-    
-    :return: AppMetadata object holding all necessary information.
-    """
-    
-    # first set up some basic information
     metadata = AppMetadata(
         name="Whisper Wrapper",
-        description="A CLAMS wrapper for Whisper-based ASR software originally developed by OpenAI, Wrapped software can be found at https://github.com/clamsproject/app-whisper-wrapper. ",
+        description="A CLAMS wrapper for Whisper-based ASR software originally developed by OpenAI.",
         app_license="Apache 2.0",
         identifier="whisper-wrapper", 
         url="https://github.com/clamsproject/app-whisper-wrapper",
-        analyzer_version=[l.strip().rsplit('==')[-1] for l in open('requirements.txt').readlines() if re.match(r'^openai-whisper==', l)][0],
+        analyzer_version=[line.strip().rsplit('==')[-1] 
+                          for line in open('requirements.txt').readlines() if re.match(r'^openai-whisper==', line)][0],
         analyzer_license="MIT",
     )
     metadata.add_input(DocumentTypes.AudioDocument)
