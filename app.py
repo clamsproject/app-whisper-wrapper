@@ -58,7 +58,7 @@ class Whisper(ClamsApp):
         char_offset = 0
         for segment in transcript["segments"]:
             for word in segment["words"]:
-                raw_token = word
+                raw_token = word["word"]
                 tok_start = char_offset
                 tok_end = tok_start + len(raw_token)
                 char_offset += len(raw_token) + len(' ')
@@ -85,6 +85,7 @@ class Whisper(ClamsApp):
                 resampled_audio_fname, ac=1, ar=16000
             ).run()
             transcripts.append(self.whisper_model.transcribe(audio=resampled_audio_fname, word_timestamps=True))
+        audio_tmpdir.cleanup()
         return transcripts
 
 
