@@ -25,7 +25,7 @@ def appmetadata() -> AppMetadata:
                           for line in open('requirements.txt').readlines() if re.match(r'^openai-whisper==', line)][0],
         analyzer_license="MIT",
     )
-    metadata.add_input(DocumentTypes.AudioDocument)
+    metadata.add_input_oneof(DocumentTypes.AudioDocument, DocumentTypes.VideoDocument)
     metadata.add_output(DocumentTypes.TextDocument)
     metadata.add_output(AnnotationTypes.TimeFrame, timeUnit=timeunit)
     metadata.add_output(AnnotationTypes.Alignment)

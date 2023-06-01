@@ -24,13 +24,11 @@ class Whisper(ClamsApp):
         if not isinstance(mmif, Mmif):
             mmif: Mmif = Mmif(mmif)
 
-        # get AudioDocuments with locations
-        docs = [
-            document
-            for document in mmif.documents
-            if document.at_type == DocumentTypes.AudioDocument
-            and len(document.location) > 0
-        ]
+        # try to get AudioDocuments
+        docs = mmif.get_documents_by_type(DocumentTypes.AudioDocument)
+        # and if none found, try VideoDocuments
+        if not docs:
+            docs = mmif.get_documents_by_type(DocumentTypes.VideoDocument)
         conf = self.get_configuration(**parameters)
         files = {doc.id: doc.location_path() for doc in docs}
 
