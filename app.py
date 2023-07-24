@@ -1,6 +1,7 @@
 import argparse
+import logging
 import tempfile
-from typing import Dict, Union, List
+from typing import Union
 
 import ffmpeg
 import whisper
@@ -11,11 +12,11 @@ from mmif import Mmif, View, AnnotationTypes, DocumentTypes
 import metadata as app_metadata
 
 
-class Whisper(ClamsApp):
+class WhisperWrapper(ClamsApp):
 
-    def __init__(self, model_size="medium"):
-        self.whisper_model = whisper.load_model(model_size)
+    def __init__(self):
         super().__init__()
+        self.whisper_models = {}
 
     def _appmetadata(self):
         pass
@@ -30,20 +31,28 @@ class Whisper(ClamsApp):
         if not docs:
             docs = mmif.get_documents_by_type(DocumentTypes.VideoDocument)
         conf = self.get_configuration(**parameters)
-        files = {doc.id: doc.location_path() for doc in docs}
-
-        transcripts = self._run_whisper(files)
-
-        for file, transcript in zip(files, transcripts):
-            # convert transcript to MMIF view
+        whisper_model = self.whisper_models.get(conf['modelSize'], None)
+        self.logger.debug(f'whisper model: {conf["modelSize"]}')
+        if whisper_model is None:
+            self.logger.debug(f'model not cached, downloading now')
+            whisper_model = whisper.load_model(conf['modelSize'])
+            self.whisper_models[conf['modelSize']] = whisper_model
+        for doc in docs:
+            audio_tmpdir = tempfile.TemporaryDirectory()
+            resampled_audio_fname = f"{audio_tmpdir.name}/{doc.id}_16kHz.wav"
+            self.logger.debug(f'starting processing of {doc.location_path()}')
+            ffmpeg.input(doc.location_path(nonexist_ok=False)).output(
+                resampled_audio_fname, ac=1, ar=16000
+            ).run()
+            transcript = whisper_model.transcribe(audio=resampled_audio_fname, word_timestamps=True)
             view: View = mmif.new_view()
-            self.sign_view(view, conf)
+            self.sign_view(view, parameters)
             view.new_contain(DocumentTypes.TextDocument)
             view.new_contain(Uri.TOKEN)
-            view.new_contain(AnnotationTypes.TimeFrame, timeUnit=app_metadata.timeunit, document=file)
+            view.new_contain(AnnotationTypes.TimeFrame, timeUnit=app_metadata.timeunit, document=doc.id)
             view.new_contain(AnnotationTypes.Alignment)
             self._whisper_to_textdocument(
-                transcript, view, mmif.get_document_by_id(file)
+                transcript, view, mmif.get_document_by_id(doc.id)
             )
         return mmif
 
@@ -66,45 +75,21 @@ class Whisper(ClamsApp):
                 tf = view.new_annotation(AnnotationTypes.TimeFrame, frameType="speech", start=tf_start, end=tf_end)
                 view.new_annotation(AnnotationTypes.Alignment, source=tf.id, target=token.id)
 
-    def _run_whisper(self, files: Dict[str, str]) -> List[dict]:
-        """
-        Run Whisper on each audio file.
-
-        :param files: dict of {AudioDocument.id : physical file location}
-        :return: A list of Whisper transcriptions in dict format
-        """
-        transcripts = []
-        # make a temporary dir for whisper-ready audio files
-        audio_tmpdir = tempfile.TemporaryDirectory()
-
-        for audio_docid, audio_fname in files.items():
-            resampled_audio_fname = f"{audio_tmpdir.name}/{audio_docid}_16kHz.wav"
-            ffmpeg.input(audio_fname).output(
-                resampled_audio_fname, ac=1, ar=16000
-            ).run()
-            transcripts.append(self.whisper_model.transcribe(audio=resampled_audio_fname, word_timestamps=True))
-        audio_tmpdir.cleanup()
-        return transcripts
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--port", action="store", default="5000", help="set port to listen"
-    )
+    parser.add_argument("--port", action="store", default="5000", help="set port to listen" )
     parser.add_argument("--production", action="store_true", help="run gunicorn server")
-    parser.add_argument(
-        "--model_size",
-        action="store",
-        default="medium",
-        help="specify Whisper model size (small/medium/large)",
-    )
     parsed_args = parser.parse_args()
 
-    whisper_flask = Restifier(
-        Whisper(parsed_args.model_size), port=int(parsed_args.port)
-    )
+    # create the app instance
+    app = WhisperWrapper()
+
+    http_app = Restifier(app, port=int(parsed_args.port))
+    # for running the application in production mode
     if parsed_args.production:
-        whisper_flask.serve_production()
+        http_app.serve_production()
+    # development mode
     else:
-        whisper_flask.run()
+        app.logger.setLevel(logging.DEBUG)
+        http_app.run()

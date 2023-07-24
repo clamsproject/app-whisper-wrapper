@@ -6,11 +6,13 @@ DO NOT CHANGE the name of the file
 
 import re
 
+from clams.app import ClamsApp
 from clams.appmetadata import AppMetadata
 from lapps.discriminators import Uri
 from mmif import DocumentTypes, AnnotationTypes
 
 timeunit = "seconds"
+default_model_size = "tiny"
 
 
 # DO NOT CHANGE the function name 
@@ -31,10 +33,23 @@ def appmetadata() -> AppMetadata:
     metadata.add_output(AnnotationTypes.Alignment)
     metadata.add_output(Uri.TOKEN)
     
+    metadata.add_parameter(
+        name='modelSize', 
+        description='The size of the model to use. Can be "tiny", "base", "small", "medium", or "large".',
+        type='string',
+        choices=['tiny', 'base', 'small', 'medium', 'large'],
+        default=default_model_size
+    )
+        
+        
+    
     return metadata
 
 
 # DO NOT CHANGE the main block
 if __name__ == '__main__':
     import sys
-    sys.stdout.write(appmetadata().jsonify(pretty=True))
+    metadata = appmetadata()
+    for param in ClamsApp.universal_parameters:
+        metadata.add_parameter(**param)
+    sys.stdout.write(metadata.jsonify(pretty=True))
