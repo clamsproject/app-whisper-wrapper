@@ -1,9 +1,7 @@
 import argparse
 import logging
-import tempfile
 from typing import Union
 
-import ffmpeg
 import whisper
 from clams import ClamsApp, Restifier
 from lapps.discriminators import Uri
@@ -64,16 +62,19 @@ class WhisperWrapper(ClamsApp):
         view.new_annotation(AnnotationTypes.Alignment, source=source_audio_doc.id, target=textdoc.id)
         char_offset = 0
         for segment in transcript["segments"]:
+            token_ids = []
             for word in segment["words"]:
-                raw_token = word["word"]
-                tok_start = char_offset
+                raw_token = word["word"].strip()
+                tok_start = raw_text.index(raw_token, char_offset)
                 tok_end = tok_start + len(raw_token)
-                char_offset += len(raw_token) + len(' ')
+                char_offset = tok_end
                 token = view.new_annotation(Uri.TOKEN, word=raw_token, start=tok_start, end=tok_end, document=f"{view.id}:{textdoc.id}")
+                token_ids.append(token.id)
                 tf_start = word["start"]
                 tf_end = word["end"]
                 tf = view.new_annotation(AnnotationTypes.TimeFrame, frameType="speech", start=tf_start, end=tf_end)
                 view.new_annotation(AnnotationTypes.Alignment, source=tf.id, target=token.id)
+            view.new_annotation(Uri.SENTENCE, targets=token_ids, text=segment['text'])
 
 
 if __name__ == "__main__":
