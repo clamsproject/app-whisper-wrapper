@@ -38,13 +38,7 @@ class WhisperWrapper(ClamsApp):
             whisper_model = whisper.load_model(conf['modelSize'])
             self.whisper_models[conf['modelSize']] = whisper_model
         for doc in docs:
-            audio_tmpdir = tempfile.TemporaryDirectory()
-            resampled_audio_fname = f"{audio_tmpdir.name}/{doc.id}_16kHz.wav"
-            self.logger.debug(f'starting processing of {doc.location_path()}')
-            ffmpeg.input(doc.location_path(nonexist_ok=False)).output(
-                resampled_audio_fname, ac=1, ar=16000
-            ).run()
-            transcript = whisper_model.transcribe(audio=resampled_audio_fname, word_timestamps=True)
+            transcript = whisper_model.transcribe(audio=doc.location_path(nonexist_ok=False), word_timestamps=True)
             view: View = mmif.new_view()
             self.sign_view(view, parameters)
             view.new_contain(DocumentTypes.TextDocument)
