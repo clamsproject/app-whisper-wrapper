@@ -19,7 +19,7 @@ class WhisperWrapper(ClamsApp):
     def _appmetadata(self):
         pass
 
-    def _annotate(self, mmif: Union[str, dict, Mmif], **parameters) -> Mmif:
+    def _annotate(self, mmif: Union[str, dict, Mmif], whisper_language: str = "None", **parameters) -> Mmif:
         if not isinstance(mmif, Mmif):
             mmif: Mmif = Mmif(mmif)
 
@@ -30,13 +30,20 @@ class WhisperWrapper(ClamsApp):
             docs = mmif.get_documents_by_type(DocumentTypes.VideoDocument)
         conf = self.get_configuration(**parameters)
         whisper_model = self.whisper_models.get(conf['modelSize'], None)
+        whisper_language = conf['modelLang']
+
         self.logger.debug(f'whisper model: {conf["modelSize"]}')
         if whisper_model is None:
             self.logger.debug(f'model not cached, downloading now')
             whisper_model = whisper.load_model(conf['modelSize'])
             self.whisper_models[conf['modelSize']] = whisper_model
         for doc in docs:
-            transcript = whisper_model.transcribe(audio=doc.location_path(nonexist_ok=False), word_timestamps=True)
+            # transcript = whisper_model.transcribe(audio=doc.location_path(nonexist_ok=False), word_timestamps=True)
+            if whisper_language == "None":
+                transcript = whisper_model.transcribe(audio=doc.location_path(nonexist_ok=False), word_timestamps=True)
+            else:
+                transcript = whisper_model.transcribe(language=whisper_language, audio=doc.location_path(nonexist_ok=False), word_timestamps=True)
+
             view: View = mmif.new_view()
             self.sign_view(view, parameters)
             view.new_contain(DocumentTypes.TextDocument)
@@ -44,15 +51,20 @@ class WhisperWrapper(ClamsApp):
             view.new_contain(AnnotationTypes.TimeFrame, timeUnit=app_metadata.timeunit, document=doc.id)
             view.new_contain(AnnotationTypes.Alignment)
             self._whisper_to_textdocument(
-                transcript, view, mmif.get_document_by_id(doc.id)
+                transcript, view, mmif.get_document_by_id(doc.id), whisper_language
             )
         return mmif
 
     @staticmethod
-    def _whisper_to_textdocument(transcript, view, source_audio_doc):
+    def _whisper_to_textdocument(transcript, view, source_audio_doc, whisper_language):
         raw_text = transcript["text"]
         # make annotations
-        textdoc = view.new_textdocument(raw_text)
+        if whisper_language != "None":
+            textdoc = view.new_textdocument(raw_text, lang=whisper_language)
+        else:
+            textdoc = view.new_textdocument(raw_text)
+
+        # textdoc = view.new_textdocument(raw_text, lang=whisper_language)
         view.new_annotation(AnnotationTypes.Alignment, source=source_audio_doc.id, target=textdoc.id)
         char_offset = 0
         for segment in transcript["segments"]:

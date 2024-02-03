@@ -10,9 +10,11 @@ from clams.app import ClamsApp
 from clams.appmetadata import AppMetadata
 from lapps.discriminators import Uri
 from mmif import DocumentTypes, AnnotationTypes
+from whisper.tokenizer import LANGUAGES
 
 timeunit = "seconds"
 default_model_size = "tiny"
+default_language = "None"
 
 
 # DO NOT CHANGE the function name 
@@ -40,9 +42,16 @@ def appmetadata() -> AppMetadata:
         choices=['tiny', 'base', 'small', 'medium', 'large'],
         default=default_model_size
     )
-        
-        
-    
+
+    metadata.add_parameter(
+        name='modelLang', 
+        description='language picker',
+        type='string',
+        choices=list(LANGUAGES.keys()).append("None"),
+        default=default_language
+    )
+
+            
     return metadata
 
 
