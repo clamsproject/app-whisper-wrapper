@@ -13,7 +13,7 @@ from mmif import DocumentTypes, AnnotationTypes
 
 timeunit = "millisecond"
 default_model_size = "tiny"
-default_model_lang = 'en'
+default_model_lang = ''
 whisper_version = [line.strip().rsplit('==')[-1]
                    for line in open('requirements.txt').readlines() if re.match(r'^openai-whisper==', line)][0]
 whisper_lang_list = f"https://github.com/openai/whisper/blob/{whisper_version}/whisper/tokenizer.py"
@@ -52,12 +52,13 @@ def appmetadata() -> AppMetadata:
                     f'error will be raised.For the full list of supported languages, see {whisper_lang_list} . In '
                     f'addition to the langauge code, two-letter region codes can be added to the language code, '
                     f'e.g. "en-US" for US English. Note that the region code is only for compatibility and recording '
-                    f'purpose, and Whisper neither detects regional dialects, nor use the given one for transcription.',
+                    f'purpose, and Whisper neither detects regional dialects, nor use the given one for transcription. '
+                    f'When the langauge code is not given, Whisper will run in langauge detection mode, and will use '
+                    f'first few seconds of the audio to detect the language.',
         type='string',
         default=default_model_lang
     )
 
-            
     return metadata
 
 

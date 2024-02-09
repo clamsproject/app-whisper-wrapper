@@ -38,17 +38,17 @@ class WhisperWrapper(ClamsApp):
             self.whisper_models[size] = whisper.load_model(size)
         whisper_model = self.whisper_models.get(size)
         for doc in docs:
-            transcript = whisper_model.transcribe(audio=doc.location_path(nonexist_ok=False), word_timestamps=True, language=lang)
+            transcript = whisper_model.transcribe(audio=doc.location_path(nonexist_ok=False), word_timestamps=True, 
+                                                  language=lang if len(lang) > 0 else None)
+            # keep the original language parameter, that might have region code as well
+            lang_to_record = parameters['modelLang'] if len(parameters['modelLang']) > 0 else transcript['language']
             view: View = mmif.new_view()
             self.sign_view(view, parameters)
-            # keep the original language parameter, that might have region code as well
-            view.new_contain(DocumentTypes.TextDocument, _lang=parameters['modelLang'])
+            view.new_contain(DocumentTypes.TextDocument, _lang=lang_to_record)
             view.new_contain(Uri.TOKEN)
             view.new_contain(AnnotationTypes.TimeFrame, timeUnit=app_metadata.timeunit, document=doc.id)
             view.new_contain(AnnotationTypes.Alignment)
-            self._whisper_to_textdocument(
-                transcript, view, mmif.get_document_by_id(doc.id), lang=parameters['modelLang']
-            )
+            self._whisper_to_textdocument(transcript, view, mmif.get_document_by_id(doc.id), lang=lang_to_record)
         return mmif
 
     @staticmethod
