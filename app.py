@@ -19,7 +19,7 @@ class WhisperWrapper(ClamsApp):
     def _appmetadata(self):
         pass
 
-    def _annotate(self, mmif: Union[str, dict, Mmif], whisper_language: str = "None", **parameters) -> Mmif:
+    def _annotate(self, mmif: Union[str, dict, Mmif], **parameters) -> Mmif:
         if not isinstance(mmif, Mmif):
             mmif: Mmif = Mmif(mmif)
 
@@ -28,46 +28,40 @@ class WhisperWrapper(ClamsApp):
         # and if none found, try VideoDocuments
         if not docs:
             docs = mmif.get_documents_by_type(DocumentTypes.VideoDocument)
-        conf = self.get_configuration(**parameters)
-        whisper_model = self.whisper_models.get(conf['modelSize'], None)
-        whisper_language = conf['modelLang']
-
-        self.logger.debug(f'whisper model: {conf["modelSize"]}')
-        if whisper_model is None:
+        lang = parameters['modelLang'].split('-')[0]
+        size = parameters['modelSize']
+        if lang == 'en':
+            size += '.en'
+        self.logger.debug(f'whisper model: {size} ({lang})')
+        if size not in self.whisper_models:
             self.logger.debug(f'model not cached, downloading now')
-            whisper_model = whisper.load_model(conf['modelSize'])
-            self.whisper_models[conf['modelSize']] = whisper_model
+            self.whisper_models[size] = whisper.load_model(size)
+        whisper_model = self.whisper_models.get(size)
         for doc in docs:
-            # transcript = whisper_model.transcribe(audio=doc.location_path(nonexist_ok=False), word_timestamps=True)
-            if whisper_language == "None":
-                transcript = whisper_model.transcribe(audio=doc.location_path(nonexist_ok=False), word_timestamps=True)
-            else:
-                transcript = whisper_model.transcribe(language=whisper_language, audio=doc.location_path(nonexist_ok=False), word_timestamps=True)
-
+            transcript = whisper_model.transcribe(audio=doc.location_path(nonexist_ok=False), word_timestamps=True, language=lang)
             view: View = mmif.new_view()
             self.sign_view(view, parameters)
-            view.new_contain(DocumentTypes.TextDocument)
+            # keep the original language parameter, that might have region code as well
+            view.new_contain(DocumentTypes.TextDocument, _lang=parameters['modelLang'])
             view.new_contain(Uri.TOKEN)
             view.new_contain(AnnotationTypes.TimeFrame, timeUnit=app_metadata.timeunit, document=doc.id)
             view.new_contain(AnnotationTypes.Alignment)
             self._whisper_to_textdocument(
-                transcript, view, mmif.get_document_by_id(doc.id), whisper_language
+                transcript, view, mmif.get_document_by_id(doc.id), lang=parameters['modelLang']
             )
         return mmif
 
     @staticmethod
-    def _whisper_to_textdocument(transcript, view, source_audio_doc, whisper_language):
+    def _whisper_to_textdocument(transcript, view, source_audio_doc, lang):
         raw_text = transcript["text"]
         # make annotations
-        if whisper_language != "None":
-            textdoc = view.new_textdocument(raw_text, lang=whisper_language)
-        else:
-            textdoc = view.new_textdocument(raw_text)
-
-        # textdoc = view.new_textdocument(raw_text, lang=whisper_language)
+        textdoc = view.new_textdocument(text=raw_text, lang=lang)
         view.new_annotation(AnnotationTypes.Alignment, source=source_audio_doc.id, target=textdoc.id)
         char_offset = 0
         for segment in transcript["segments"]:
+            # skip empty segments
+            if len(segment["words"]) == 0 or len(segment["text"]) == 0:
+                continue
             token_ids = []
             for word in segment["words"]:
                 raw_token = word["word"].strip()
@@ -76,8 +70,8 @@ class WhisperWrapper(ClamsApp):
                 char_offset = tok_end
                 token = view.new_annotation(Uri.TOKEN, word=raw_token, start=tok_start, end=tok_end, document=f"{view.id}:{textdoc.id}")
                 token_ids.append(token.id)
-                tf_start = word["start"]
-                tf_end = word["end"]
+                tf_start = int(word["start"] * 1000)
+                tf_end = int(word["end"] * 1000)
                 tf = view.new_annotation(AnnotationTypes.TimeFrame, frameType="speech", start=tf_start, end=tf_end)
                 view.new_annotation(AnnotationTypes.Alignment, source=tf.id, target=token.id)
             view.new_annotation(Uri.SENTENCE, targets=token_ids, text=segment['text'])

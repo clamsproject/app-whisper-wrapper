@@ -10,11 +10,13 @@ from clams.app import ClamsApp
 from clams.appmetadata import AppMetadata
 from lapps.discriminators import Uri
 from mmif import DocumentTypes, AnnotationTypes
-from whisper.tokenizer import LANGUAGES
 
-timeunit = "seconds"
+timeunit = "millisecond"
 default_model_size = "tiny"
-default_language = "None"
+default_model_lang = 'en'
+whisper_version = [line.strip().rsplit('==')[-1]
+                   for line in open('requirements.txt').readlines() if re.match(r'^openai-whisper==', line)][0]
+whisper_lang_list = f"https://github.com/openai/whisper/blob/{whisper_version}/whisper/tokenizer.py"
 
 
 # DO NOT CHANGE the function name 
@@ -25,8 +27,7 @@ def appmetadata() -> AppMetadata:
         app_license="Apache 2.0",
         identifier="whisper-wrapper", 
         url="https://github.com/clamsproject/app-whisper-wrapper",
-        analyzer_version=[line.strip().rsplit('==')[-1] 
-                          for line in open('requirements.txt').readlines() if re.match(r'^openai-whisper==', line)][0],
+        analyzer_version=whisper_version,
         analyzer_license="MIT",
     )
     metadata.add_input_oneof(DocumentTypes.AudioDocument, DocumentTypes.VideoDocument)
@@ -34,6 +35,7 @@ def appmetadata() -> AppMetadata:
     metadata.add_output(AnnotationTypes.TimeFrame, timeUnit=timeunit)
     metadata.add_output(AnnotationTypes.Alignment)
     metadata.add_output(Uri.TOKEN)
+    metadata.add_output(Uri.SENTENCE)
     
     metadata.add_parameter(
         name='modelSize', 
@@ -45,10 +47,14 @@ def appmetadata() -> AppMetadata:
 
     metadata.add_parameter(
         name='modelLang', 
-        description='language picker',
+        description=f'Language of the model to use, accepts two- or three-letter ISO 639 language codes, '
+                    f'however Whisper only supports a subset of languages. If the language is not supported, '
+                    f'error will be raised.For the full list of supported languages, see {whisper_lang_list} . In '
+                    f'addition to the langauge code, two-letter region codes can be added to the language code, '
+                    f'e.g. "en-US" for US English. Note that the region code is only for compatibility and recording '
+                    f'purpose, and Whisper neither detects regional dialects, nor use the given one for transcription.',
         type='string',
-        choices=list(LANGUAGES.keys()).append("None"),
-        default=default_language
+        default=default_model_lang
     )
 
             
