@@ -11,6 +11,16 @@ import metadata as app_metadata
 
 
 class WhisperWrapper(ClamsApp):
+    
+    model_size_alias = {
+        't': 'tiny', 
+        'b': 'base', 
+        's': 'small', 
+        'm': 'medium', 
+        'l': 'large', 
+        'l2': 'large-v2', 
+        'l3': 'large-v3'
+    }
 
     def __init__(self):
         super().__init__()
@@ -30,7 +40,9 @@ class WhisperWrapper(ClamsApp):
             docs = mmif.get_documents_by_type(DocumentTypes.VideoDocument)
         lang = parameters['modelLang'].split('-')[0]
         size = parameters['modelSize']
-        if lang == 'en':
+        if size in self.model_size_alias:
+            size = self.model_size_alias[size]
+        if lang == 'en' and not size.startswith('large'):
             size += '.en'
         self.logger.debug(f'whisper model: {size} ({lang})')
         if size not in self.whisper_models:

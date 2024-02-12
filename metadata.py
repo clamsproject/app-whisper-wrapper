@@ -39,9 +39,11 @@ def appmetadata() -> AppMetadata:
     
     metadata.add_parameter(
         name='modelSize', 
-        description='The size of the model to use. Can be "tiny", "base", "small", "medium", or "large".',
+        description='The size of the model to use. When `modelLand=en` is given, for non-`large` models, '
+                    'English-only models will be used instead of multilingual models for speed and accuracy. '
+                    '(For `large` models, English-only models are not available.)',
         type='string',
-        choices=['tiny', 'base', 'small', 'medium', 'large'],
+        choices=['tiny', 't', 'base', 'b', 'small', 's', 'medium', 'm', 'large', 'l', 'large-v2', 'l2', 'large-v3', 'l3'],
         default=default_model_size
     )
 
