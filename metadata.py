@@ -11,7 +11,7 @@ from clams.appmetadata import AppMetadata
 from lapps.discriminators import Uri
 from mmif import DocumentTypes, AnnotationTypes
 
-timeunit = "millisecond"
+timeunit = "milliseconds"
 default_model_size = "tiny"
 default_model_lang = ''
 whisper_version = [line.strip().rsplit('==')[-1]
