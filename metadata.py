@@ -1,5 +1,5 @@
 """
-The purpose of this file is to define the metadata of the app with minimal imports. 
+The purpose of this file is to define the metadata of the app with minimal imports.
 
 DO NOT CHANGE the name of the file
 """
@@ -19,7 +19,7 @@ whisper_version = [line.strip().rsplit('==')[-1]
 whisper_lang_list = f"https://github.com/openai/whisper/blob/{whisper_version}/whisper/tokenizer.py"
 
 
-# DO NOT CHANGE the function name 
+# DO NOT CHANGE the function name
 def appmetadata() -> AppMetadata:
     metadata = AppMetadata(
         name="Whisper Wrapper",
@@ -39,7 +39,7 @@ def appmetadata() -> AppMetadata:
     
     metadata.add_parameter(
         name='modelSize', 
-        description='The size of the model to use. When `modelLand=en` is given, for non-`large` models, '
+        description='The size of the model to use. When `modelLang=en` is given, for non-`large` models, '
                     'English-only models will be used instead of multilingual models for speed and accuracy. '
                     '(For `large` models, English-only models are not available.)',
         type='string',

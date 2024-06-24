@@ -86,17 +86,21 @@ class WhisperWrapper(ClamsApp):
                 tf_end = int(word["end"] * 1000)
                 tf = view.new_annotation(AnnotationTypes.TimeFrame, frameType="speech", start=tf_start, end=tf_end)
                 view.new_annotation(AnnotationTypes.Alignment, source=tf.id, target=token.id)
-            view.new_annotation(Uri.SENTENCE, targets=token_ids, text=segment['text'])
+            view.new_annotation(Uri.SENTENCE, targets=token_ids, text=segment['text'].strip())
+
+
+def get_app():
+    return WhisperWrapper()
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--port", action="store", default="5000", help="set port to listen" )
+    parser.add_argument("--port", action="store", default="5000", help="set port to listen")
     parser.add_argument("--production", action="store_true", help="run gunicorn server")
     parsed_args = parser.parse_args()
 
     # create the app instance
-    app = WhisperWrapper()
+    app = get_app()
 
     http_app = Restifier(app, port=int(parsed_args.port))
     # for running the application in production mode
