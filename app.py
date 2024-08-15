@@ -25,6 +25,7 @@ class WhisperWrapper(ClamsApp):
     def __init__(self):
         super().__init__()
         self.whisper_models = {}
+        self.model_usage = {}
 
     def _appmetadata(self):
         pass
@@ -45,10 +46,19 @@ class WhisperWrapper(ClamsApp):
         if lang == 'en' and not size.startswith('large'):
             size += '.en'
         self.logger.debug(f'whisper model: {size} ({lang})')
+
         if size not in self.whisper_models:
             self.logger.debug(f'model not cached, downloading now')
             self.whisper_models[size] = whisper.load_model(size)
-        whisper_model = self.whisper_models.get(size)
+            self.model_usage[size] = False
+        if self.model_usage[size] == False:
+            whisper_model = self.whisper_models.get(size)
+            self.model_usage[size] = True
+            cached = True
+        else:
+            whisper_model = whisper.load_model(size)
+            cached = False
+
         for doc in docs:
             transcript = whisper_model.transcribe(audio=doc.location_path(nonexist_ok=False), word_timestamps=True, 
                                                   language=lang if len(lang) > 0 else None)
@@ -61,6 +71,9 @@ class WhisperWrapper(ClamsApp):
             view.new_contain(AnnotationTypes.TimeFrame, timeUnit=app_metadata.timeunit, document=doc.id)
             view.new_contain(AnnotationTypes.Alignment)
             self._whisper_to_textdocument(transcript, view, mmif.get_document_by_id(doc.id), lang=lang_to_record)
+        
+        if size in self.model_usage and cached == True:
+                self.model_usage[size] = False
         return mmif
 
     @staticmethod
