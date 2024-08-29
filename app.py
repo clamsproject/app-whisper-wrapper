@@ -1,5 +1,6 @@
 import argparse
 import logging
+import re
 from typing import Union
 
 import whisper
@@ -46,6 +47,12 @@ class WhisperWrapper(ClamsApp):
         if lang == 'en' and not size.startswith('large'):
             size += '.en'
         self.logger.debug(f'whisper model: {size} ({lang})')
+        transcribe_args = {}
+        for param in self.metadata.parameters:
+            if param.description.startswith(app_metadata.whisper_argument_delegation_prefix):
+                pattern = re.compile(r'(?<!^)(?=[A-Z])')
+                transcribe_args[pattern.sub('_', param.name).lower()] = parameters[param.name]
+        self.logger.debug(f'whisper model args: {transcribe_args}')
 
         if size not in self.whisper_models:
             self.logger.debug(f'model not cached, downloading now')
@@ -61,7 +68,7 @@ class WhisperWrapper(ClamsApp):
 
         for doc in docs:
             transcript = whisper_model.transcribe(audio=doc.location_path(nonexist_ok=False), word_timestamps=True, 
-                                                  language=lang if len(lang) > 0 else None)
+                                                  language=lang if len(lang) > 0 else None, **transcribe_args)
             # keep the original language parameter, that might have region code as well
             lang_to_record = parameters['modelLang'] if len(parameters['modelLang']) > 0 else transcript['language']
             view: View = mmif.new_view()

@@ -17,7 +17,7 @@ default_model_lang = ''
 whisper_version = [line.strip().rsplit('==')[-1]
                    for line in open('requirements.txt').readlines() if re.match(r'^openai-whisper==', line)][0]
 whisper_lang_list = f"https://github.com/openai/whisper/blob/{whisper_version}/whisper/tokenizer.py"
-
+whisper_argument_delegation_prefix = "(from whisper CLI) "
 
 # DO NOT CHANGE the function name
 def appmetadata() -> AppMetadata:
@@ -61,6 +61,15 @@ def appmetadata() -> AppMetadata:
         type='string',
         default=default_model_lang
     )
+    # and some delegated parameters from the underlying whisper interface, copied from whisper's transcribe.py (cli())
+    metadata.add_parameter(name="task", type='string', default="transcribe", choices=["transcribe", "translate"], 
+                           description=whisper_argument_delegation_prefix + "whether to perform X->X speech recognition ('transcribe') or X->English translation ('translate')")
+    metadata.add_parameter(name="initialPrompt", type='string', default='',
+                           description=whisper_argument_delegation_prefix + "optional text to provide as a prompt for the first window.")
+    metadata.add_parameter(name="conditionOnPreviousText", type='boolean', default=True, 
+                           description=whisper_argument_delegation_prefix + "if True, provide the previous output of the model as a prompt for the next window; disabling may make the text inconsistent across windows, but the model becomes less prone to getting stuck in a failure loop")
+    metadata.add_parameter(name="noSpeechThreshold", type='number', default=0.6, 
+                           description=whisper_argument_delegation_prefix + "if the probability of the <|nospeech|> token is higher than this value AND the decoding has failed due to `logprob_threshold`, consider the segment as silence")
 
     return metadata
 
