@@ -7,6 +7,8 @@ from typing import Union
 # == NEW IMPORTS ==
 import torch
 from transformers import pipeline, AutoProcessor, AutoModelForSpeechSeq2Seq
+
+# will try these later:
 # from transformers import WhisperProcessor, WhisperForConditionalGeneration
 
 from clams import ClamsApp, Restifier
