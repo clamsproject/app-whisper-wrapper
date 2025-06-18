@@ -14,8 +14,7 @@ from mmif import DocumentTypes, AnnotationTypes
 timeunit = "milliseconds"
 default_model_size = "tiny"
 default_model_lang = ''
-whisper_version = [line.strip().rsplit('==')[-1]
-                   for line in open('requirements.txt').readlines() if re.match(r'^openai-whisper==', line)][0]
+whisper_version = "20240930"
 whisper_lang_list = f"https://github.com/openai/whisper/blob/{whisper_version}/whisper/tokenizer.py"
 whisper_argument_delegation_prefix = "(from whisper CLI) "
 

@@ -28,7 +28,7 @@ class WhisperWrapperHF(ClamsApp):
         'l': 'large', 
         'l2': 'large-v2', 
         'l3': 'large-v3',
-        'tu': 'turbo',
+        'tu': 'large-v3-turbo',
     }
 
     def __init__(self):
