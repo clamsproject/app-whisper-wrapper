@@ -43,10 +43,17 @@ class WhisperWrapper(ClamsApp):
         if not docs:
             docs = mmif.get_documents_by_type(DocumentTypes.VideoDocument)
         lang = parameters['modelLang'].split('-')[0]
+        if lang and lang not in whisper.tokenizer.LANGUAGES:
+            raise ValueError(f"unsupported language code: {lang}. Check whisper/tokenizer.py")
+
         size = parameters['modelSize']
         if size in self.model_size_alias:
             size = self.model_size_alias[size]
-        if lang == 'en' and not size.startswith('large'):
+
+        # tiny, base, small, medium have English-only models. large and turbo do not.
+        # tiny.en, base.en, small.en, medium.en:
+        EN_MODELS = {'tiny', 'base', 'small', 'medium'}
+        if lang == 'en' and size in EN_MODELS:
             size += '.en'
         self.logger.debug(f'whisper model: {size} ({lang})')
         # taken from the default values for decoder arguments in whisper cli
