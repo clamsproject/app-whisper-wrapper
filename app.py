@@ -6,7 +6,6 @@ from typing import Union
 
 import whisper
 from clams import ClamsApp, Restifier
-from lapps.discriminators import Uri
 from mmif import Mmif, View, AnnotationTypes, DocumentTypes
 
 import metadata as app_metadata
@@ -106,7 +105,7 @@ class WhisperWrapper(ClamsApp):
             view: View = mmif.new_view()
             self.sign_view(view, parameters)
             view.new_contain(DocumentTypes.TextDocument, _lang=lang_to_record)
-            view.new_contain(Uri.TOKEN)
+            view.new_contain(AnnotationTypes.Token)
             view.new_contain(AnnotationTypes.TimeFrame, timeUnit=app_metadata.timeunit, document=doc.id)
             view.new_contain(AnnotationTypes.Alignment)
             self.logger.debug(f'View preparation time: {time.perf_counter() - t:.2f} seconds\n')
@@ -121,28 +120,71 @@ class WhisperWrapper(ClamsApp):
 
     @staticmethod
     def _whisper_to_textdocument(transcript, view, source_audio_doc, lang):
-        raw_text = transcript["text"]
-        # make annotations
-        textdoc = view.new_textdocument(text=raw_text, lang=lang)
-        view.new_annotation(AnnotationTypes.Alignment, source=source_audio_doc.id, target=textdoc.id)
+        # Build text by concatenating words and create tokens simultaneously
+        all_text_parts = []
+        all_tokens_data = []
         char_offset = 0
+        
         for segment in transcript["segments"]:
-            # skip empty segments
-            if len(segment["words"]) == 0 or len(segment["text"]) == 0:
-                continue
-            token_ids = []
+            segment_token_data = []
             for word in segment["words"]:
                 raw_token = word["word"].strip()
-                tok_start = raw_text.index(raw_token, char_offset)
+                if not raw_token:  # skip empty tokens
+                    continue
+                    
+                tok_start = char_offset
                 tok_end = tok_start + len(raw_token)
-                char_offset = tok_end
-                token = view.new_annotation(Uri.TOKEN, word=raw_token, start=tok_start, end=tok_end, document=f'{view.id}:{textdoc.id}')
+                
+                # Store token data for later annotation creation
+                segment_token_data.append({
+                    'word': raw_token,
+                    'char_start': tok_start,
+                    'char_end': tok_end,
+                    'time_start': word["start"],
+                    'time_end': word["end"]
+                })
+                
+                all_text_parts.append(raw_token)
+                char_offset = tok_end + 1  # +1 for space
+            
+            all_tokens_data.append(segment_token_data)
+        
+        # Build the full text document
+        raw_text = " ".join(all_text_parts)
+        
+        # Create text document
+        textdoc = view.new_textdocument(text=raw_text, lang=lang)
+        view.new_annotation(AnnotationTypes.Alignment, source=source_audio_doc.id, target=textdoc.id)
+        
+        # Create all token and sentence annotations
+        for segment_token_data in all_tokens_data:
+            if not segment_token_data:  # skip empty segments
+                continue
+                
+            token_ids = []
+            sentence_words = []
+            
+            for token_data in segment_token_data:
+                # Create token annotation
+                token = view.new_annotation(
+                    AnnotationTypes.Token, 
+                    text=token_data['word'], 
+                    start=token_data['char_start'], 
+                    end=token_data['char_end'], 
+                    document=f'{textdoc.id}'
+                )
                 token_ids.append(token.id)
-                tf_start = int(word["start"] * 1000)
-                tf_end = int(word["end"] * 1000)
+                sentence_words.append(token_data['word'])
+                
+                # Create timeframe and alignment
+                tf_start = int(token_data['time_start'] * 1000)
+                tf_end = int(token_data['time_end'] * 1000)
                 tf = view.new_annotation(AnnotationTypes.TimeFrame, frameType="speech", start=tf_start, end=tf_end)
                 view.new_annotation(AnnotationTypes.Alignment, source=tf.id, target=token.id)
-            view.new_annotation(Uri.SENTENCE, targets=token_ids, text=segment['text'].strip())
+            
+            # Create sentence annotation
+            sentence_text = " ".join(sentence_words)
+            view.new_annotation(AnnotationTypes.Sentence, targets=token_ids, text=sentence_text)
 
 
 def get_app():
