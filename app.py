@@ -41,19 +41,14 @@ class WhisperWrapper(ClamsApp):
         # and if none found, try VideoDocuments
         if not docs:
             docs = mmif.get_documents_by_type(DocumentTypes.VideoDocument)
-        lang = parameters['modelLang'].split('-')[0]
+        lang = parameters['language'].split('-')[0]
         if lang and lang not in whisper.tokenizer.LANGUAGES:
             raise ValueError(f"unsupported language code: {lang}. Check whisper/tokenizer.py")
 
-        size = parameters['modelSize']
+        size = parameters['model']
         if size in self.model_size_alias:
             size = self.model_size_alias[size]
 
-        # tiny, base, small, medium have English-only models. large and turbo do not.
-        # tiny.en, base.en, small.en, medium.en:
-        EN_MODELS = {'tiny', 'base', 'small', 'medium'}
-        if lang == 'en' and size in EN_MODELS:
-            size += '.en'
         self.logger.debug(f'whisper model: {size} ({lang})')
         # taken from the default values for decoder arguments in whisper cli
         transcribe_args = {'best_of': 5, 
@@ -65,13 +60,17 @@ class WhisperWrapper(ClamsApp):
         for param in self.metadata.parameters:
             if param.description.startswith(app_metadata.whisper_argument_delegation_prefix):
                 pattern = re.compile(r'(?<!^)(?=[A-Z])')
-                transcribe_args[pattern.sub('_', param.name).lower()] = parameters[param.name]
-        # this is due to the limitation of the SDK that doesn't allow `None` for a default value for a parameter
-        # (setting default to None is a reserved action to make the parameter optional)
-        # So as a workaround, the default is set to an empty string, then to match the behavior of the whisper cli,
-        # it's converted to None here.
-        if transcribe_args['initial_prompt'] == '':
-            transcribe_args['initial_prompt'] = None
+                # this is due to the limitation of the SDK that doesn't allow `None` for a default value for a parameter
+                # (setting default to None is a reserved action to make the parameter optional)
+                # So as a workaround, the default is set to an empty string, then to match the behavior of the whisper 
+                # cli, it's converted to None here.
+                if param.type == 'string' and parameters[param.name] == '':
+                    transcribe_args[pattern.sub('_', param.name).lower()] = None
+                elif param.name == 'model':
+                    # skip the model parameter since it's used to load the model not transcribe args
+                    continue
+                else:
+                    transcribe_args[pattern.sub('_', param.name).lower()] = parameters[param.name]
         if size not in self.whisper_models:
             self.logger.debug(f'Loading model {size}')
             t = time.perf_counter()
@@ -92,7 +91,8 @@ class WhisperWrapper(ClamsApp):
         for doc in docs:
             transcribe_args['language'] = lang if len(lang) > 0 else None
             transcribe_args['word_timestamps'] = True
-            self.logger.debug(f'whisper model args: {transcribe_args}')
+            for k, v in transcribe_args.items():
+                self.logger.debug(f'whisper model arg: {k} = {v}')
             self.logger.debug('Transcribing audio')
             t = time.perf_counter()
             transcript = whisper_model.transcribe(audio=doc.location_path(nonexist_ok=False), 
@@ -101,7 +101,7 @@ class WhisperWrapper(ClamsApp):
             # keep the original language parameter, that might have region code as well
             self.logger.debug(f'Preparing a new transcript view for {doc.id}')
             t = time.perf_counter()
-            lang_to_record = parameters['modelLang'] if len(parameters['modelLang']) > 0 else transcript['language']
+            lang_to_record = parameters['language'] if len(parameters['language']) > 0 else transcript['language']
             view: View = mmif.new_view()
             self.sign_view(view, parameters)
             view.new_contain(DocumentTypes.TextDocument, _lang=lang_to_record)
