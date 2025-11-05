@@ -170,7 +170,7 @@ def format_default_value(default_str, param_type):
     return default_str
 
 
-def convert_to_clams_parameter(arg_info, prefix="(from whisper CLI) "):
+def convert_to_clams_parameter(arg_info, prefix="(from openai-whisper CLI) "):
     """Convert parsed argument info to CLAMS metadata.add_parameter() call."""
     if not arg_info or arg_info.get('original_name', '').startswith('audio'):
         return None  # Skip positional arguments like 'audio'
