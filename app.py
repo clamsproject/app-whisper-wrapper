@@ -111,15 +111,46 @@ class WhisperWrapper(ClamsApp):
             self.logger.debug(f'View preparation time: {time.perf_counter() - t:.2f} seconds\n')
             self.logger.debug(f'Translating into MMIF')
             t = time.perf_counter()
-            self._whisper_to_textdocument(transcript, view, mmif.get_document_by_id(doc.id), lang=lang_to_record)
+            self._whisper_with_word_ts_to_textdocument(transcript, view, mmif.get_document_by_id(doc.id), lang=lang_to_record)
             self.logger.debug(f'Translation time: {time.perf_counter() - t:.2f} seconds\n')
         
         if size in self.model_usage and cached == True:
                 self.model_usage[size] = False
         return mmif
+    
+    @staticmethod
+    def _whisper_no_word_ts_to_textdocument(transcript, view, source_audio_doc, lang):
+        """
+        Old implementation that combines "full" text and "word" text together
+        Current we force 'word_timestamps=True' but when we give it as runtime parameter,
+        it might be False, so we keep this method for backward compatibility.
+        """
+        raw_text = transcript["text"]
+        # make annotations
+        textdoc = view.new_textdocument(text=raw_text, lang=lang)
+        view.new_annotation(AnnotationTypes.Alignment, source=source_audio_doc.id, target=textdoc.id)
+        char_offset = 0
+        for segment in transcript["segments"]:
+            # skip empty segments
+            if len(segment["words"]) == 0 or len(segment["text"]) == 0:
+                continue
+            token_ids = []
+            for word in segment["words"]:
+                raw_token = word["word"].strip()
+                tok_start = raw_text.index(raw_token, char_offset)
+                tok_end = tok_start + len(raw_token)
+                char_offset = tok_end
+                token = view.new_annotation(AnnotationTypes.Token, text=raw_token, start=tok_start, end=tok_end, document=f'{view.id}:{textdoc.id}')
+                token_ids.append(token.id)
+                tf_start = int(word["start"] * 1000)
+                tf_end = int(word["end"] * 1000)
+                tf = view.new_annotation(AnnotationTypes.TimeFrame, frameType="speech", start=tf_start, end=tf_end)
+                view.new_annotation(AnnotationTypes.Alignment, source=tf.id, target=token.id)
+            view.new_annotation(AnnotationTypes.Sentence, targets=token_ids, text=segment['text'].strip())
+
 
     @staticmethod
-    def _whisper_to_textdocument(transcript, view, source_audio_doc, lang):
+    def _whisper_with_word_ts_to_textdocument(transcript, view, source_audio_doc, lang):
         # Build text by concatenating words and create tokens simultaneously
         all_text_parts = []
         all_tokens_data = []
