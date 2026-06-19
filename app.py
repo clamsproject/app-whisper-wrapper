@@ -12,17 +12,6 @@ import metadata as app_metadata
 
 
 class WhisperWrapper(ClamsApp):
-    
-    model_size_alias = {
-        't': 'tiny', 
-        'b': 'base', 
-        's': 'small', 
-        'm': 'medium', 
-        'l': 'large', 
-        'l2': 'large-v2', 
-        'l3': 'large-v3',
-        'tu': 'turbo',
-    }
 
     def __init__(self):
         super().__init__()
@@ -46,8 +35,8 @@ class WhisperWrapper(ClamsApp):
             raise ValueError(f"unsupported language code: {lang}. Check whisper/tokenizer.py")
 
         size = parameters['model']
-        if size in self.model_size_alias:
-            size = self.model_size_alias[size]
+        if size in app_metadata.model_size_alias:
+            size = app_metadata.model_size_alias[size]
 
         self.logger.debug(f'whisper model: {size} ({lang})')
         # taken from the default values for decoder arguments in whisper cli
