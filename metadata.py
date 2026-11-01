@@ -8,7 +8,6 @@ import re
 
 from clams.app import ClamsApp
 from clams.appmetadata import AppMetadata
-from lapps.discriminators import Uri
 from mmif import DocumentTypes, AnnotationTypes
 
 timeunit = "milliseconds"
@@ -78,8 +77,8 @@ def appmetadata() -> AppMetadata:
     metadata.add_output(DocumentTypes.TextDocument)
     metadata.add_output(AnnotationTypes.TimeFrame, timeUnit=timeunit)
     metadata.add_output(AnnotationTypes.Alignment)
-    metadata.add_output(Uri.TOKEN)
-    metadata.add_output(Uri.SENTENCE)
+    metadata.add_output(AnnotationTypes.Token)
+    metadata.add_output(AnnotationTypes.Sentence)
 
     # some delegated parameters from the underlying whisper interface, copied from whisper's transcribe.py (cli())
     metadata.add_parameter(

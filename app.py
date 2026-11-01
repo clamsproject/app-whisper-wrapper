@@ -100,7 +100,7 @@ class WhisperWrapper(ClamsApp):
             self.logger.debug(f'View preparation time: {time.perf_counter() - t:.2f} seconds\n')
             self.logger.debug(f'Translating into MMIF')
             t = time.perf_counter()
-            self._whisper_with_word_ts_to_textdocument(transcript, view, mmif.get_document_by_id(doc.id), lang=lang_to_record)
+            self._whisper_with_word_ts_to_textdocument(transcript, view, doc, lang=lang_to_record)
             self.logger.debug(f'Translation time: {time.perf_counter() - t:.2f} seconds\n')
         
         if size in self.model_usage and cached == True:
@@ -129,13 +129,13 @@ class WhisperWrapper(ClamsApp):
                 tok_start = raw_text.index(raw_token, char_offset)
                 tok_end = tok_start + len(raw_token)
                 char_offset = tok_end
-                token = view.new_annotation(AnnotationTypes.Token, text=raw_token, start=tok_start, end=tok_end, document=f'{view.id}:{textdoc.id}')
+                token = view.new_annotation(AnnotationTypes.Token, text=raw_token, start=tok_start, end=tok_end, document=textdoc.id)
                 token_ids.append(token.id)
                 tf_start = int(word["start"] * 1000)
                 tf_end = int(word["end"] * 1000)
-                tf = view.new_annotation(AnnotationTypes.TimeFrame, frameType="speech", start=tf_start, end=tf_end)
+                tf = view.new_annotation(AnnotationTypes.TimeFrame, label="speech", start=tf_start, end=tf_end)
                 view.new_annotation(AnnotationTypes.Alignment, source=tf.id, target=token.id)
-            view.new_annotation(AnnotationTypes.Sentence, targets=token_ids, text=segment['text'].strip())
+            view.new_annotation(AnnotationTypes.Sentence, targets=token_ids, text=segment['text'].strip(), document=textdoc.id)
 
 
     @staticmethod
@@ -191,7 +191,7 @@ class WhisperWrapper(ClamsApp):
                     text=token_data['word'], 
                     start=token_data['char_start'], 
                     end=token_data['char_end'], 
-                    document=f'{textdoc.id}'
+                    document=textdoc.id
                 )
                 token_ids.append(token.id)
                 sentence_words.append(token_data['word'])
@@ -199,12 +199,12 @@ class WhisperWrapper(ClamsApp):
                 # Create timeframe and alignment
                 tf_start = int(token_data['time_start'] * 1000)
                 tf_end = int(token_data['time_end'] * 1000)
-                tf = view.new_annotation(AnnotationTypes.TimeFrame, frameType="speech", start=tf_start, end=tf_end)
+                tf = view.new_annotation(AnnotationTypes.TimeFrame, label="speech", start=tf_start, end=tf_end)
                 view.new_annotation(AnnotationTypes.Alignment, source=tf.id, target=token.id)
             
             # Create sentence annotation
             sentence_text = " ".join(sentence_words)
-            view.new_annotation(AnnotationTypes.Sentence, targets=token_ids, text=sentence_text)
+            view.new_annotation(AnnotationTypes.Sentence, targets=token_ids, text=sentence_text, document=textdoc.id)
 
 
 def get_app():
