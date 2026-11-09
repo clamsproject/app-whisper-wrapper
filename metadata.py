@@ -133,7 +133,7 @@ def appmetadata() -> AppMetadata:
     )
     metadata.add_parameter(
         name="conditionOnPreviousText",
-        type='string',
+        type='boolean',
         default=True,
         description="(from openai-whisper CLI) if True, provide the previous output of the model as a prompt for the next window; disabling may make the text inconsistent across windows, but the model becomes less prone to getting stuck in a failure loop"
     )
