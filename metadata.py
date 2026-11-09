@@ -74,11 +74,31 @@ def appmetadata() -> AppMetadata:
         est_gpu_mem_typ=6000,
     )
     metadata.add_input_oneof(DocumentTypes.AudioDocument, DocumentTypes.VideoDocument)
-    metadata.add_output(DocumentTypes.TextDocument)
-    metadata.add_output(AnnotationTypes.TimeFrame, timeUnit=timeunit)
-    metadata.add_output(AnnotationTypes.Alignment)
-    metadata.add_output(AnnotationTypes.Token)
-    metadata.add_output(AnnotationTypes.Sentence)
+    out_td = metadata.add_output(DocumentTypes.TextDocument)
+    out_td.add_description(
+        'The transcript: the words of all segments joined by single spaces. '
+        'Its language is the `language` parameter, or the language whisper '
+        'detected when the parameter is empty.')
+    out_tf = metadata.add_output(AnnotationTypes.TimeFrame,
+                                 timeUnit=timeunit, document='*',
+                                 label='speech')
+    out_tf.add_description('One TimeFrame per word, over the time whisper '
+                           'gives the word.')
+    out_ali = metadata.add_output(AnnotationTypes.Alignment)
+    out_ali.add_description(
+        'Alignments between 1) the source `AudioDocument` or `VideoDocument` '
+        'and the `TextDocument`, 2) each `TimeFrame` and its `Token`.')
+    out_tok = metadata.add_output(AnnotationTypes.Token, document='*',
+                                  text='*', scores='*')
+    out_tok.add_description(
+        '`scores` is a list with one float in [0, 1]: the word probability '
+        'from whisper. It is not calibrated.')
+    out_sent = metadata.add_output(AnnotationTypes.Sentence, document='*',
+                                   text='*', targets='*', scores='*')
+    out_sent.add_description(
+        'One Sentence per whisper segment; `targets` lists its Tokens. '
+        '`scores` lists the word probability of each Token in the Sentence, '
+        'in the order of `targets`.')
 
     # some delegated parameters from the underlying whisper interface, copied from whisper's transcribe.py (cli())
     metadata.add_parameter(

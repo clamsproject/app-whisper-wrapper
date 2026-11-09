@@ -161,7 +161,8 @@ class WhisperWrapper(ClamsApp):
                     'char_start': tok_start,
                     'char_end': tok_end,
                     'time_start': word["start"],
-                    'time_end': word["end"]
+                    'time_end': word["end"],
+                    'score': float(word["probability"])
                 })
                 
                 all_text_parts.append(raw_token)
@@ -183,6 +184,7 @@ class WhisperWrapper(ClamsApp):
                 
             token_ids = []
             sentence_words = []
+            token_scores = []
             
             for token_data in segment_token_data:
                 # Create token annotation
@@ -191,10 +193,12 @@ class WhisperWrapper(ClamsApp):
                     text=token_data['word'], 
                     start=token_data['char_start'], 
                     end=token_data['char_end'], 
-                    document=textdoc.id
+                    document=textdoc.id,
+                    scores=[token_data['score']]
                 )
                 token_ids.append(token.id)
                 sentence_words.append(token_data['word'])
+                token_scores.append(token_data['score'])
                 
                 # Create timeframe and alignment
                 tf_start = int(token_data['time_start'] * 1000)
@@ -204,7 +208,10 @@ class WhisperWrapper(ClamsApp):
             
             # Create sentence annotation
             sentence_text = " ".join(sentence_words)
-            view.new_annotation(AnnotationTypes.Sentence, targets=token_ids, text=sentence_text, document=textdoc.id)
+            # one score per Token, in Token order; consumers aggregate
+            view.new_annotation(AnnotationTypes.Sentence, targets=token_ids,
+                                text=sentence_text, document=textdoc.id,
+                                scores=token_scores)
 
 
 def get_app():
